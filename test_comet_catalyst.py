@@ -7,7 +7,7 @@ from catalyst import dl
 from catalyst.data import ToTensor
 from catalyst.contrib.datasets import MNIST
 from catalyst.loggers.comet import CometLogger
-from catalyst_pytest_consts import EXPECTED_METRICS, EXPECTED_SYSTEM_METRICS
+from catalyst_pytest_consts import EXPECTED_METRICS
 import multiprocessing
 
 
@@ -19,28 +19,28 @@ class AlwaysEquals(object):
         return False
 
 
-logger = CometLogger(project_name='catalyst-pytest', logging_frequency=10)
+def train_model(logger):
+    """
+    Initiates and trains the model.
+    """
 
-model = nn.Sequential(nn.Flatten(), nn.Linear(28 * 28, 10))
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.02)
+    model = nn.Sequential(nn.Flatten(), nn.Linear(28 * 28, 10))
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.02)
 
+    loaders = {
+        "train": DataLoader(
+            MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32
+        ),
+        "valid": DataLoader(
+            MNIST(os.getcwd(), train=False, download=True, transform=ToTensor()), batch_size=32
+        ),
+    }
 
-loaders = {
-    "train": DataLoader(
-        MNIST(os.getcwd(), train=True, download=True, transform=ToTensor()), batch_size=32
-    ),
-    "valid": DataLoader(
-        MNIST(os.getcwd(), train=False, download=True, transform=ToTensor()), batch_size=32
-    ),
-}
+    runner = dl.SupervisedRunner(
+        input_key="features", output_key="logits", target_key="targets", loss_key="loss"
+    )
 
-runner = dl.SupervisedRunner(
-    input_key="features", output_key="logits", target_key="targets", loss_key="loss"
-)
-
-
-def train_model():
     # model training
     runner.train(
         model=model,
@@ -66,31 +66,32 @@ def train_model():
 
 
 def build_result(name):
-    return {'name': name, 'valueMax': AlwaysEquals(), 'valueMin': AlwaysEquals(), 'valueCurrent': AlwaysEquals(), 'timestampMax': AlwaysEquals(), 'timestampMin': AlwaysEquals(), 'timestampCurrent': AlwaysEquals(), 'stepMax': AlwaysEquals(), 'stepMin': AlwaysEquals(), 'stepCurrent': AlwaysEquals(), 'editable': False}
+    if 'sys.' not in name:
+        return {'name': name, 'valueMax': AlwaysEquals(), 'valueMin': AlwaysEquals(), 'valueCurrent': AlwaysEquals(), 'timestampMax': AlwaysEquals(), 'timestampMin': AlwaysEquals(), 'timestampCurrent': AlwaysEquals(), 'stepMax': AlwaysEquals(), 'stepMin': AlwaysEquals(), 'stepCurrent': AlwaysEquals(), 'editable': False}
+    else:
+        return {'name': name, 'valueMax': AlwaysEquals(), 'valueMin': AlwaysEquals(), 'valueCurrent': AlwaysEquals(), 'timestampMax': AlwaysEquals(), 'timestampMin': AlwaysEquals(), 'timestampCurrent': AlwaysEquals(), 'editable': False}
 
 
-def build_result_system(name):
-    return {'name': name, 'valueMax': AlwaysEquals(), 'valueMin': AlwaysEquals(), 'valueCurrent': AlwaysEquals(), 'timestampMax': AlwaysEquals(), 'timestampMin': AlwaysEquals(), 'timestampCurrent': AlwaysEquals(), 'editable': False}
+def get_system_cpus():
+    """
+    Returns the amount of cpu's of the machine that the test is running on.
+    """
+    number_of_cpus = multiprocessing.cpu_count()
+    return ['sys.cpu.percent.' + str(number).zfill(2) for number in range(1, number_of_cpus + 1)]
 
 
 def test_metrics():
-    train_model()
-    ID = comet_ml.get_global_experiment().id
+    logger = CometLogger(project_name='catalyst-pytest', logging_frequency=10)
+    train_model(logger=logger)
+    experiment_id = comet_ml.get_global_experiment().id
 
     api = API()
-    api_experiment = api.get_experiment_by_id(ID)
+    api_experiment = api.get_experiment_by_id(experiment_id)
 
     metrics = api_experiment.get_metrics_summary()
 
-    number_of_cpus = multiprocessing.cpu_count()
-    cpus = ['sys.cpu.percent.' + str(number).zfill(2) for number in range(1, number_of_cpus + 1)]
-    
-    expected_system_metric_names = EXPECTED_SYSTEM_METRICS + cpus
+    cpus = get_system_cpus()
+    expected_metric_names = EXPECTED_METRICS + cpus
 
-    for item in EXPECTED_METRICS:
+    for item in expected_metric_names:
         assert build_result(item) in metrics
-
-    for item in expected_system_metric_names:
-        assert build_result_system(item) in metrics
-
-    assert False

@@ -55,13 +55,10 @@ EXPECTED_METRICS = [
                     'train/train_batch_recall/class_04',
                     'train/train_batch_f1/_weighted',
                     'train/train_batch_precision/class_09',
-                    'train/train_batch_recall/class_03'
+                    'train/train_batch_recall/class_03',
+                    'sys.cpu.percent.avg',
+                    'sys.load.avg',
+                    'sys.ram.total',
+                    'sys.ram.used'
                     ]
-
-EXPECTED_SYSTEM_METRICS = [
-                          'sys.cpu.percent.avg',
-                          'sys.load.avg',
-                          'sys.ram.total',
-                          'sys.ram.used'
-                          ]
 
